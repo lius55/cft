@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>CSV整形</title>
+<script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+</head>
+<body>
+
+<input type="file" id="files" />
+<button id="start">処理開始</button>
+
+<table id="result">
+	<tr><td>変換前</td><td>変換後</td><td>抽出</td></tr>
+</table>
+<div id="processing"></div>
+
+<script type="text/javascript">
+
+String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.replace(new RegExp(search, 'g'), replacement);
+};
+
+const ReplaceMap = [
+	{ from: '【', 	to: '(' 	},
+	{ from: '】', 	to: ')' 	},
+	{ from: '元年', 	to: '1年'	},
+	{ from: '年年',	to: '年'		},
+	{ from: ' |　|､|、|"|\\n',	to: '' }, // 半角スペース,全角スペース,「"」,「、」,「改行コード」は削除、
+	{ from: '(株)',	to: '株式会社' },
+	// 金額
+	{ from: '壱',	to: 1		},
+	{ from: '弐',	to: 2		},
+	{ from: '参',	to: 3		},
+	{ from: '肆',	to: 4		},
+	{ from: '伍',	to: 5		},
+	{ from: '陸',	to: 6		},
+	{ from: '漆|質',	to: 7		},
+	{ from: '捌',	to: 8		},
+	{ from: '玖',	to: 9		},
+	{ from: '陌|佰',	to: '百'		},
+	{ from: '阡|仟',	to: '千'		},
+	{ from: '萬', 	to: '万'		}
+];
+
+/**
+ * 全角から半角への変革関数
+ */
+function toHalfWidth(strVal){
+	// 半角変換
+	var replaced = strVal.replace(/[！-～]/g, function(tmpStr) {
+    	// 文字コードをシフト
+    	return String.fromCharCode(tmpStr.charCodeAt(0) - 0xFEE0);
+    });
+
+	// 特殊文字列変換
+  	$.each(ReplaceMap, function(index, element) {
+  		replaced = replaced.replace(new RegExp(element.from, 'g'), element.to);
+	});
+
+	// ()付の情報は後ろに移動する
+	let bracket = new RegExp('\\([^\\(]*\\)', 'g');
+	let matched = replaced.match(bracket);
+	if (replaced.match(bracket) != null) {
+		replaced = replaced.replace(bracket, '');
+		replaced += matched.join('');
+	}
+
+	return replaced;
+}
+
+const YearMap = [
+	{ from: '平成', to: 1988 },
+	{ from: '昭和', to: 1925 },
+	{ from: '大正', to: 1911 },
+	{ from: '明治', to: 1867 }
+];
+
+const Type = {
+	Date: 		'日付',
+	Money: 		'金額',
+	Phone: 		'電話番号',
+	Name: 		'人名',
+	CmpName: 	'会社名',
+	EngCmpName: '英文社名',
+	PostCode: 	'郵便番号',
+	Location: 	'所在地' 
+};
+
+/**
+ * 和暦→西歴へ変換処理
+ */
+function yearReplacer(match, p1, p2, p3, offset, string) {
+	var replaced;
+	$.each(YearMap, function(index, element) {
+		if(match.substr(0, 2) == element.from) {
+			let jpYear = parseInt(match.substr(2, match.indexOf('年') - 2));
+			let adYear = parseInt(jpYear + element.to);
+			// console.log("match=" + match + ",to=" + adYear + "年");
+			replaced = adYear + "年";
+			return false;
+		}
+	});
+	return replaced;
+}
+
+/**
+ * 和暦→西歴へ変換
+ */
+function toJpYear(str) {
+	return str.replace(/(昭和|平成|明治|大正)\d+年/g, yearReplacer);
+}
+
+function handleFileSelect(evt) {
+
+	// inputタグからFileオブジェクトを取得
+    var file = $("#files"); 
+
+    // ファイル読み取り用オブジェクト作成
+    var reader = new FileReader(); 
+
+    // ファイル読み込み
+    reader.readAsText(file[0].files[0]);
+
+    // 全角→半角
+    // 昭和|大正|明治年号変換  (/(昭和|平成|明治|大正)\d+年/g)
+    var loaded = function(event) {
+    	// 1行ごとに分割
+    	var arr = event.target.result.split('\r\n'); 
+    	var resultArr = new Array();
+		console.log(arr.length);
+		var count = 0;
+    	$.each(arr, function(index, element) {
+
+    		// if (count++ < 10040) { return true; }
+    		// if (count > 10060) { return false; }
+			
+			element = toHalfWidth(element);
+
+    		var num = element.split(',')[0];
+    		var type = element.split(',')[1];
+    		var content = (element.split(",").length > 2) ?
+    			element.split(",")[2] : '';
+    		// var content = element.split(',')[2];
+
+    		// TODO 後ろに移動可能
+    		content = toJpYear(content);
+
+    		arr[index] = content;
+
+    		// 電話番号の整形
+    		if (type == Type.Phone) {
+    			// 不要な文字削除
+    			// content = content.replace(new RegExp('‐|−|-|ー|,|\\.|\\(|\\)', 'g'), '');
+    			content = content.replace(new RegExp('‐|−|-|ー|ｰ|,|\\.|\\(|\\)', 'g'), '');
+    			if (content.length > 11 || content.length < 10) {
+    				console.log("element=" + element + ",type=" + type);
+    				return true;
+    			}
+    			var replacedPhoneStr = '';
+    			if (content.length == 10) {
+    				replacedPhoneStr = content.substr(0, 2) + '-' + content.substr(2, 4) + '-'
+    					+ content.substr(6, 4);
+    			} else if (content.length == 11) {
+    				replacedPhoneStr = content.substr(0, 3) + '-' + content.substr(3, 4) + '-'
+    					+ content.substr(7, 4);
+    			}
+    			resultArr.push(num + ',' + Type.Phone + ',' + replacedPhoneStr);
+    			return true;
+    		}
+
+    		// 郵便番号の整形
+    		if (type == Type.PostCode) {
+    			resultArr.push(num + ',' + Type.PostCode + ',' + content);
+    			return true;
+    		}
+
+    		// console.log("elemnt=" + element + "type=" + type);
+
+    		// 日付の整形
+    		// var matched = content.match(/\d+年\d+月\d+日|\d+年\d+月|\d+年/g);
+    		// if(matched == null) { 
+    		// 	matched = ''; 
+    		// } else {
+    		// 	$.each(matched, function(i, e) {
+    		// 		resultArr.push(num + ',日付,' + e);
+    		// 	});
+    		// 	matched = matched.join('<日付>|') + '<日付>';
+    		// }
+
+    		// // 金額の整形 (億|千万|百万|万)*/g)
+    		// matched = content.match(/(\d)+(億|千万|百万|万|千|百|円)*/g);
+
+    		// addProcessInfo(element, content, matched);
+    		// console.log(content);
+    	});
+
+    	// ファイル保存
+    	// downloadCsvFile(resultArr.join('\r\n'), 'result.csv');
+    }
+
+    // ファイルを読み込み処理
+    reader.onload = loaded;
+}
+
+$('#start').on('click', function(event) {
+	handleFileSelect(event);
+});
+
+/**
+ *　jsonデータからCSVファイルに変換し、ダウンロードを行う
+ */
+var downloadCsvFile = function(data, fileName) {
+
+    var downloadData = new Blob([data], {type: 'text/csv'});
+    var downloadUrl  = (window.URL || window.webkitURL).createObjectURL(downloadData);
+    var link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName;
+    link.click();
+    (window.URL || window.webkitURL).revokeObjectURL(downloadUrl);
+};
+
+function addProcessInfo(from, to, target) {
+	$("#result").append('<tr><td>' + from + '</td><td>' + 
+		to + '</td><td>' + target + '</td></tr>');
+}
+
+</script>
+
+</script>
+</body>
+</html>
