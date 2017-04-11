@@ -2,6 +2,7 @@
 <html>
 <head>
 <title>CSV整形</title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 <link rel="stylesheet" type="text/css" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
 <script src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
@@ -37,11 +38,11 @@
 	<div id="info">処理中(<span id="count">1000</span>/<span id="sum">50000</span>件)</div>
 </div>
 
-<div style="height: 400px; overflow-y: scroll;">
+<!-- <div style="height: 400px; overflow-y: scroll;">
 	<table id="result">
 		<tr><th>変換前</th><th>変換後</th><th>抽出</th></tr>
 	</table>
-</div>
+</div> -->
 
 <script type="text/javascript">
 
@@ -103,10 +104,10 @@ function moveBracketBack(str) {
 }
 
 const YearMap = [
-	{ from: '平成', to: 1988 },
-	{ from: '昭和', to: 1925 },
-	{ from: '大正', to: 1911 },
-	{ from: '明治', to: 1867 }
+	{ from: '平成|H|h', 	to: 1988 },
+	{ from: '昭和|S|s', 	to: 1925 },
+	{ from: '大正|T|t', 	to: 1911 },
+	{ from: '明治|M|m', 	to: 1867 }
 ];
 
 const Type = {
@@ -138,8 +139,8 @@ const AmountUnit = [
 function yearReplacer(match, p1, p2, p3, offset, string) {
 	var replaced;
 	$.each(YearMap, function(index, element) {
-		if(match.substr(0, 2) == element.from) {
-			let jpYear = parseInt(match.substr(2, match.indexOf('年') - 2));
+		if(element.from.indexOf(match.match(/[^\d年]+/g).join('')) > -1)  {
+			let jpYear = parseInt(match.match(/[\d]+/g).join(''));
 			let adYear = parseInt(jpYear + element.to);
 			// console.log("match=" + match + ",to=" + adYear + "年");
 			replaced = adYear + "年";
@@ -153,7 +154,7 @@ function yearReplacer(match, p1, p2, p3, offset, string) {
  * 和暦→西歴へ変換
  */
 function toJpYear(str) {
-	return str.replace(/(昭和|平成|明治|大正)\d+年/g, yearReplacer);
+	return str.replace(/(昭和|平成|明治|大正|s|h|m|t)\d+年/gi, yearReplacer);
 }
 
 function handleFileSelect() {
@@ -172,9 +173,10 @@ function handleFileSelect() {
     // 昭和|大正|明治年号変換  (/(昭和|平成|明治|大正)\d+年/g)
     var loaded = function(event) {
     	// 1行ごとに分割
-    	var arr = event.target.result.split('\r\n'); 
+    	var arr = event.target.result.split('\r\n');
+    	arr.pop(); 
     	var resultArr = new Array();
-		console.log(arr.length);
+		// console.log(arr.length);
 		var count = 0;
 
 		var patternAry = new Array();
@@ -182,10 +184,11 @@ function handleFileSelect() {
     	$.each(arr, function(index, element) {
 
     		count++;
-    		if (count < 27764) { return true; }
-    		if (count > 32763) { return false; }
+    		// if (count < 27764) { return true; }
+    		// if (count > 32763) { return false; }
 
     		var num = element.split(',')[0];
+    		console.log("element=" + element);
     		var type = element.split(',')[1].replace(/\"/g, '');
     		var tempAry = element.split(',');
     		tempAry.splice(0, 2);
@@ -201,20 +204,20 @@ function handleFileSelect() {
     		if (type == Type.Phone) {
     			// 不要な文字削除
     			// content = content.replace(new RegExp('‐|−|-|ー|,|\\.|\\(|\\)', 'g'), '');
-    			content = content.replace(new RegExp('‐|−|-|ー|ｰ|,|\\.|\\(|\\)', 'g'), '');
-    			if (content.length > 11 || content.length < 10) {
-    				console.log("element=" + element + ",type=" + type);
-    				return true;
-    			}
-    			var replacedPhoneStr = '';
-    			if (content.length == 10) {
-    				replacedPhoneStr = content.substr(0, 2) + '-' + content.substr(2, 4) + '-'
-    					+ content.substr(6, 4);
-    			} else if (content.length == 11) {
-    				replacedPhoneStr = content.substr(0, 3) + '-' + content.substr(3, 4) + '-'
-    					+ content.substr(7, 4);
-    			}
-    			resultArr.push(num + ',' + Type.Phone + ',' + replacedPhoneStr);
+    			content = content.replace(new RegExp('‐|−|-|ー|ｰ|,|\\.|\\(|\\)', 'g'), '-');
+	    			// if (content.length > 11 || content.length < 10) {
+	    			// 	console.log("element=" + element + ",type=" + type);
+	    			// 	return true;
+	    			// }
+    			// var replacedPhoneStr = '';
+    			// if (content.length == 10) {
+    			// 	replacedPhoneStr = content.substr(0, 2) + '-' + content.substr(2, 4) + '-'
+    			// 		+ content.substr(6, 4);
+    			// } else if (content.length == 11) {
+    			// 	replacedPhoneStr = content.substr(0, 3) + '-' + content.substr(3, 4) + '-'
+    			// 		+ content.substr(7, 4);
+    			// }
+    			resultArr.push(num + ',' + Type.Phone + ',' + content);
     			return true;
     		}
 
@@ -232,14 +235,15 @@ function handleFileSelect() {
 
     		var matched = '';
     		var dateReplacer = function(match, p1, p2, p3, offset, string) {
-    			resultArr.push(num + ',日付,' + match);
+
+    			resultArr.push(num + ',日付,' + match.match(/\d+/g).join('-'));
 				// console.log(num + ',日付,' + match);
 				matched += match + '<日付>';
 				return '';
     		};
 
     		// 日付の整形
-    		content = content.replace(/\d+年\d+月\d+日|\d+年\d+月|\d+年/g, dateReplacer);
+    		content = content.replace(/\d{4}年\d+月\d+日|\d+年\d+月|\d+年/g, dateReplacer);
 
     		// var matched = content.match(/\d+年\d+月\d+日|\d+年\d+月|\d+年/g);
     		// if(matched != null) { 
@@ -278,15 +282,15 @@ function handleFileSelect() {
 	    					});
 			    		}
 		    			resultArr.push(num + ',金額,' + sumAmount);
-						console.log("element=" + element + "→" + num + ',' + sumAmount);
+						// console.log("element=" + element + "→" + num + ',' + sumAmount);
 	    			});
 	    		}
 			}
 
 			if (type == Type.PeopleNum) {
 				// TODO replace追加
-				content = content.replace(/(\d)+:(\d)+|(\d)+級|(\d)+%/g, '');
-				matched = content.match(/(\d)+(|人|名)*[^\d人名]*/g);
+				// content = content.replace(/(\d)+:(\d)+|(\d)+級|(\d)+%/g, '');
+				matched = content.match(/(\d)+(人|名)+/g);
 
 				// var pattern = content.match(/(\d)+[^\d]/g);
 				// if (pattern != null) {
@@ -301,21 +305,20 @@ function handleFileSelect() {
 				if (matched != null) {
 					$.each(matched, function(i, e) {
 
-						e = e.replace(/[^\d人名]/g, '');
 						var peopleNum = e.match(/(\d)+/g);
-						resultArr.push(num + ',人数,' + peopleNum);
-						console.log("elemnt=" + element + "----->" + num + "," + peopleNum);
+						resultArr.push(num + ',人数,' + peopleNum.join(''));
+						// console.log("elemnt=" + element + "----->" + num + "," + peopleNum);
 					});
 				}
 			}
 
-    		addProcessInfo(element, content, matched);
+    		// addProcessInfo(element, content, matched);
     		// console.log(content);
     	});
 
     	// ファイル保存
     	end();
-    	// downloadCsvFile(resultArr.join('\r\n'), 'result.csv');
+    	downloadCsvFile(resultArr.join('\r\n'), 'result.csv');
     }
 
     // ファイルを読み込み処理
