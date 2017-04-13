@@ -24,7 +24,6 @@
 </style>
 </head>
 <body>
-<!--http://www.bad-company.jp/box-shadow/-->
 <div id="container">
 	<div class="form-inline" action="">
 		<div class="form-group">
@@ -35,14 +34,8 @@
 		</div>
 		<button type="submit" class="btn btn-default" for="file" display="fileName" id="selectFile">ファイル選択</button>
 	</div>
-	<div id="info">処理中(<span id="count">1000</span>/<span id="sum">50000</span>件)</div>
+	<div id="info"></div>
 </div>
-
-<!-- <div style="height: 400px; overflow-y: scroll;">
-	<table id="result">
-		<tr><th>変換前</th><th>変換後</th><th>抽出</th></tr>
-	</table>
-</div> -->
 
 <script type="text/javascript">
 
@@ -56,8 +49,10 @@ const ReplaceMap = [
 	{ from: '】', 	to: ')' 	},
 	{ from: '元年', 	to: '1年'	},
 	{ from: '年年',	to: '年'		},
-	{ from: ' |　|､|、|"|,|．|\\.|\\n',	to: '' }, // 半角スペース,全角スペース,「"」,「、」,「改行コード」は削除、
-	{ from: '(株)',	to: '株式会社' },
+//	{ from: ' |　|､|、|"|,|．|\\.|\\n',	to: '' }, // 半角スペース,全角スペース,「"」,「、」,「改行コード」は削除、
+	{ from: ' |　|､|、|"|．|\\.|\\n',	to: '' },
+	{ from: '\\(株\\)',  to: '株式会社' },
+	{ from: '\\(有\\)',  to: '有限会社' },
 	// 金額
 	{ from: '壱',	to: 1		},
 	{ from: '弐',	to: 2		},
@@ -83,12 +78,35 @@ function toHalfWidth(strVal) {
     	return String.fromCharCode(tmpStr.charCodeAt(0) - 0xFEE0);
     });
 
+	return replaced;
+}
+
+function formatComp(strVal) {
+
+	var cmpReplaceMap = [
+		{ from: '【', 	to: '(' 	},
+		{ from: '】', 	to: ')' 	},
+		{ from: '\\(株\\)',  to: '株式会社' },
+		{ from: '\\(有\\)',  to: '有限会社' },
+		{ from: ' |　|､|、|"|．|\\.|\\n',	to: '' }
+	];
+
 	// 特殊文字列変換
-  	$.each(ReplaceMap, function(index, element) {
-  		replaced = replaced.replace(new RegExp(element.from, 'g'), element.to);
+  	$.each(cmpReplaceMap, function(index, element) {
+  		strVal = strVal.replace(new RegExp(element.from, 'g'), element.to);
 	});
 
-	return replaced;
+	return strVal;
+}
+
+function clearContent(strVal) {
+
+	// 特殊文字列変換
+  	$.each(ReplaceMap, function(index, element) {
+  		strVal = strVal.replace(new RegExp(element.from, 'g'), element.to);
+	});
+
+	return strVal;
 }
 
 function moveBracketBack(str) {
@@ -118,7 +136,8 @@ const Type = {
 	CmpName: 	'会社名',
 	EngCmpName: '英文社名',
 	PostCode: 	'郵便番号',
-	Location: 	'所在地' 
+	Location: 	'所在地',
+	Fax: 		'FAX' 
 };
 
 const AmountUnit = [
@@ -174,28 +193,107 @@ function handleFileSelect() {
     var loaded = function(event) {
     	// 1行ごとに分割
     	var arr = event.target.result.split('\r\n');
+    	// 最後の１行を削除
     	arr.pop(); 
     	var resultArr = new Array();
-		// console.log(arr.length);
 		var count = 0;
 
 		var patternAry = new Array();
 
     	$.each(arr, function(index, element) {
 
-    		count++;
-    		// if (count < 27764) { return true; }
-    		// if (count > 32763) { return false; }
+    		// if (count++ % 1000 == 0) { showProcessing(); }
 
     		var num = element.split(',')[0];
-    		console.log("element=" + element);
+    		// console.log("element=" + element);
     		var type = element.split(',')[1].replace(/\"/g, '');
     		var tempAry = element.split(',');
     		tempAry.splice(0, 2);
     		var content = tempAry.join(',');
 			content = toHalfWidth(content);
 
-    		// TODO 後ろに移動可能
+			// 英文社名
+			if (type == Type.EngCmpName) {
+				var engCompReplacer = function(match, p1, p2, p3, offset, string) {
+	    			// resultArr.push(num + ',英文社名,' + match);
+	    			return '';
+	    		}
+				var content = content.replace(/([^A-Za-z,， 　,.・・&-])+/g, engCompReplacer);
+				resultArr.push(num + ',英文社名,' + content);
+			}
+
+    		// 会社名の抽出
+    		if (type == Type.CmpName || type == Type.Location) {
+
+	    		content = formatComp(content);
+
+	    		// 電話番号抽出
+	    		var cmpPhoneReplacer = function(match, p1, p2, p3, offset, string) {
+	    			match = match.replace(/[^\d‐ーｰ\(\)-]/g, '');
+	    			match = match.replace(/‐|−|-|ー|ｰ|\(|\)/g, '-');
+	    			// 最初と最後の-削除
+	    			match = match.replace(/^[^\d]+/g, '');
+	    			match = match.replace(/[^\d]+$/g, '');
+	    			if (match.length > 10) {
+		    			resultArr.push(num + ',' + Type.Phone + ',' + match);
+	    			}
+	    			return '|';
+	    		}
+	    		content = content.replace(/(電話|電話番号|tel)(:|\(|\)| |　|\d|‐|−|-|ー|ｰ)+/gi, cmpPhoneReplacer);
+
+	    		// 郵便番号抽出
+	    		var postCodeReplacer = function(match, p1, p2, p3, offset, string) {
+	    			match = match.replace(/[^\d‐ーｰ-]/g, '');
+	    			match = match.replace(/‐|−|-|ー|ｰ/g, '-');
+	    			match = match.replace(/^[^\d]+/g, '');
+	    			match = match.replace(/[^\d]+$/g, '');
+	    			if (match.length > 0 ) {
+		    			resultArr.push(num + ',' + Type.PostCode + ',' + match);
+	    			}
+	    			return '|';
+	    		}
+	    		content = content.replace(/(〒)(:| |　|\d|‐|−|-|ー|ｰ)+/gi, postCodeReplacer);
+
+				// FAX番号抽出
+	    		var faxReplacer = function(match, p1, p2, p3, offset, string) {
+	    			match = match.replace(/[^\d‐ーｰ\(\)-]/g, '');
+	    			match = match.replace(/‐|−|-|ー|ｰ|\(|\)/g, '-');
+	    			match = match.replace(/^[^\d]+/g, '');
+	    			match = match.replace(/[^\d]+$/g, '');
+	    			if (match.length > 0 ) {
+		    			resultArr.push(num + ',' + Type.Fax + ',' + match);
+	    			}
+	    			return '|';
+	    		}
+	    		content = content.replace(/(fax)(:|\(|\)| |　|\d|‐|−|-|ー|ｰ)+/gi, faxReplacer);
+
+	    		// FAX、電話番号、郵便番号以降の内容削除する
+	    		content = content.replace(/\|.*/g, '');
+
+	    		// 漢字、全角カナかな、全角ひらがな、半角かたかな
+	    		// 会社名・所在地のうち、記号や数字で始まるもの 記号や郵便番号等の数字は除去してください。
+	    		content = content.replace(/^[^一-龠|\u3040-\u309F|\u30A0-\u30FF|\uFF65-\uFF9F|\u4E00-\u9FFF]+/g, '');
+
+	    		// 所在地に「地図」「マップ」「アクセスマップ」を含むもの 該当の記述以降と、直前の記号を除去してください
+	    		content = content.replace(/[^一-龠|\u3040-\u309F|\u30A0-\u30FF|\uFF65-\uFF9F|\u4E00-\u9FFF\d]*(地図|マップ|アクセスマップ|詳細地図|google|メールアドレス|http|☎).*/gi, '');
+
+	    		var compReplacer = function(match, p1, p2, p3, offset, string) {
+	    			resultArr.push(num + ',' + Type.CmpName + ',' + match);
+	    			return '';
+	    		}
+	    		if (type == Type.CmpName) {
+	    			content = content.replace(/[-]+$/g, '');
+	    			content.replace(/^[^,|\(|\)]*(会社)[^,|\(|\)]+/g, compReplacer);
+	    		} else {
+	    			if (content.length > 1) {
+	    				content = content.replace(/[-]+$/g, '');
+		    			resultArr.push(num + ',' + Type.Location + ',' + content);
+	    			}
+	    		}
+			}
+
+
+			content = clearContent(content);
     		content = toJpYear(content);
 
     		arr[index] = content;
@@ -203,20 +301,7 @@ function handleFileSelect() {
     		// 電話番号の整形
     		if (type == Type.Phone) {
     			// 不要な文字削除
-    			// content = content.replace(new RegExp('‐|−|-|ー|,|\\.|\\(|\\)', 'g'), '');
     			content = content.replace(new RegExp('‐|−|-|ー|ｰ|,|\\.|\\(|\\)', 'g'), '-');
-	    			// if (content.length > 11 || content.length < 10) {
-	    			// 	console.log("element=" + element + ",type=" + type);
-	    			// 	return true;
-	    			// }
-    			// var replacedPhoneStr = '';
-    			// if (content.length == 10) {
-    			// 	replacedPhoneStr = content.substr(0, 2) + '-' + content.substr(2, 4) + '-'
-    			// 		+ content.substr(6, 4);
-    			// } else if (content.length == 11) {
-    			// 	replacedPhoneStr = content.substr(0, 3) + '-' + content.substr(3, 4) + '-'
-    			// 		+ content.substr(7, 4);
-    			// }
     			resultArr.push(num + ',' + Type.Phone + ',' + content);
     			return true;
     		}
@@ -227,8 +312,6 @@ function handleFileSelect() {
     			return true;
     		}
 
-    		// console.log("elemnt=" + element + "type=" + type);
-
     		if (type == Type.Date || type == Type.Money || type == Type.PeopleNum) {
     			content = moveBracketBack(content);
     		}
@@ -236,25 +319,14 @@ function handleFileSelect() {
     		var matched = '';
     		var dateReplacer = function(match, p1, p2, p3, offset, string) {
 
-    			resultArr.push(num + ',日付,' + match.match(/\d+/g).join('-'));
+    			resultArr.push(num + ',' + Type.Date + ',' + match.match(/\d+/g).join('-'));
 				// console.log(num + ',日付,' + match);
 				matched += match + '<日付>';
 				return '';
     		};
 
     		// 日付の整形
-    		content = content.replace(/\d{4}年\d+月\d+日|\d+年\d+月|\d+年/g, dateReplacer);
-
-    		// var matched = content.match(/\d+年\d+月\d+日|\d+年\d+月|\d+年/g);
-    		// if(matched != null) { 
-    		// 	$.each(matched, function(i, e) {
-    		// 		resultArr.push(num + ',日付,' + e);
-    		// 		console.log(num + ',日付,' + e);
-    		// 	});
-    		// 	matched = matched.join('<日付>|') + '<日付>';
-    		// 	// 抽出済みの内容は削除する　TODO 問題あり
-    		// 	content.replace
-    		// }
+    		content = content.replace(/\d{4}年\d+月\d+日|\d{4}年\d+月|\d{4}年/g, dateReplacer);
 
     		if (type == Type.Money) {
 	    		// 金額の整形 (億|千万|百万|万)*/g)
@@ -281,7 +353,7 @@ function handleFileSelect() {
 				    			});
 	    					});
 			    		}
-		    			resultArr.push(num + ',金額,' + sumAmount);
+		    			resultArr.push(num + ',' + Type.Money + ',' + sumAmount);
 						// console.log("element=" + element + "→" + num + ',' + sumAmount);
 	    			});
 	    		}
@@ -306,14 +378,11 @@ function handleFileSelect() {
 					$.each(matched, function(i, e) {
 
 						var peopleNum = e.match(/(\d)+/g);
-						resultArr.push(num + ',人数,' + peopleNum.join(''));
+						resultArr.push(num + ',' + Type.PeopleNum + ',' + peopleNum.join(''));
 						// console.log("elemnt=" + element + "----->" + num + "," + peopleNum);
 					});
 				}
 			}
-
-    		// addProcessInfo(element, content, matched);
-    		// console.log(content);
     	});
 
     	// ファイル保存
@@ -330,16 +399,15 @@ $('#start').on('click', function(event) {
 });
 
 var clearFun;
-
-var times = 0;
-var clear = function() {
-	$('#info').html('処理中...');
-	clearInterval(clearFun);
+var counter = 0;
+var showProcessing = function() {
+	counter++;
+	$('#info').html('処理中' + new Array(counter % 4).fill('.').join(''));
 }
 
 var processing = function() {
 	$('#info').html('処理中');
-	clearFun = setInterval(clear, 1000);
+	clearFun = setInterval(showProcessing, 1000);
 }
 
 var end = function() {
