@@ -32,6 +32,19 @@ const ReplaceMap = [
 	{ from: '萬', 	to: '万'		}
 ];
 
+const ReplaceNumStr = [
+	{ from: '一', to: '1' },
+	{ from: '二', to: '2' },
+	{ from: '三', to: '3' },
+	{ from: '四', to: '4' },
+	{ from: '五', to: '5' },
+	{ from: '六', to: '6' },
+	{ from: '七', to: '7' },
+	{ from: '八', to: '8' },
+	{ from: '九', to: '9' },
+	{ from: '十', to: '1' }
+];
+
 /**
  * 全角から半角への変革関数
  */
@@ -73,13 +86,29 @@ function clearContent(strVal) {
 	return strVal;
 }
 
+function replaceNum(match, p1, p2, p3, offset, string) {
+
+	var tenReplacer = function(match, p1, p2, p3, offset, string) {
+		return match.replace('十', '10');
+	}
+
+	// 十だけ特別処理
+	var strVal = match.replace(/十[年月日]/, tenReplacer);
+
+	each(ReplaceNumStr, function(index, element) {
+  		strVal = strVal.replace(new RegExp(element.from, 'g'), element.to);
+	});
+
+	return strVal;
+}
+
 function moveBracketBack(str) {
 	var replaced = str;
 	// ()付の情報は後ろに移動する
 	var bracket = new RegExp('\\([^\\(]*\\)', 'g');
 	var matched = replaced.match(bracket);
 	if (replaced.match(bracket) != null) {
-		replaced = replaced.replace(bracket, '|');
+		replaced = replaced.replace(bracket, '');
 		replaced += matched.join('');
 	}
 	return replaced;
@@ -119,14 +148,27 @@ const AmountUnit = [
 /**
  * 和暦→西歴へ変換処理
  */
+// function yearReplacer(match, p1, p2, p3, offset, string) {
+// 	var replaced;
+// 	each(YearMap, function(index, element) {
+// 		if(element.from.indexOf(match.match(/[^\d年]+/g).join('')) > -1)  {
+// 			let jpYear = parseInt(match.match(/[\d]+/g).join(''));
+// 			let adYear = parseInt(jpYear + element.to);
+// 			// console.log("match=" + match + ",to=" + adYear + "年");
+// 			replaced = adYear + "年";
+// 			return false;
+// 		}
+// 	});
+// 	return replaced;
+// }
 function yearReplacer(match, p1, p2, p3, offset, string) {
 	var replaced;
 	each(YearMap, function(index, element) {
-		if(element.from.indexOf(match.match(/[^\d年]+/g).join('')) > -1)  {
+		if(element.from.indexOf(match.match(/[^\d]+/g).join('')) > -1)  {
 			let jpYear = parseInt(match.match(/[\d]+/g).join(''));
 			let adYear = parseInt(jpYear + element.to);
 			// console.log("match=" + match + ",to=" + adYear + "年");
-			replaced = adYear + "年";
+			replaced = adYear;
 			return false;
 		}
 	});
@@ -137,7 +179,7 @@ function yearReplacer(match, p1, p2, p3, offset, string) {
  * 和暦→西歴へ変換
  */
 function toJpYear(str) {
-	return str.replace(/(昭和|平成|明治|大正|s|h|m|t)\d+年/gi, yearReplacer);
+	return str.replace(/(昭和|平成|明治|大正|s|h|m|t)\d+/gi, yearReplacer);
 }
 
 // exports.convert(input) {
@@ -175,7 +217,7 @@ exports.dataExtraction = function(input) {
 		// 英文社名
 		if (type == Type.EngCmpName) {
 			var content = content.replace(/([^A-Za-z,， 　,.・・&-])+/g, '');
-			if (content > 1) {
+			if ((content != undefined) && (content.length > 1)) {
 				writeFile(num, Type.EngCmpName, content);
 			}
 		}
@@ -245,7 +287,7 @@ exports.dataExtraction = function(input) {
     		}
     		if (type == Type.CmpName) {
     			content = content.replace(/[-]+$/g, '');
-    			content.replace(/^[^,|\(|\)]*(会社)[^,|\(|\)]+/g, compReplacer);
+    			content.replace(/[^,|\(|\)]*(会社|店|商事|商社|事務所|屋|不動産|研究所|室|工房|組合|事業部|事務局|工業)[^,|\(|\)]*/g, compReplacer);
     		} else {
     			if (content.length > 1) {
     				content = content.replace(/[-]+$/g, '');
@@ -256,7 +298,6 @@ exports.dataExtraction = function(input) {
 		}
 
 		content = clearContent(content);
-		content = toJpYear(content);
 
 		// 電話番号の整形
 		if (type == Type.Phone) {
@@ -274,11 +315,18 @@ exports.dataExtraction = function(input) {
 
 		if (type == Type.Date || type == Type.Money || type == Type.PeopleNum) {
 			content = moveBracketBack(content);
+			content = content.replace(/[一二三四五六七八九十]+[年月日一二三四五六七八九十]*[^一二三四五六七八九十]/g, replaceNum);
+			content = toJpYear(content);
 		}
 
 		var matched = '';
 		var dateReplacer = function(match, p1, p2, p3, offset, string) {
-			writeFile(num, Type.Date, match.match(/\d+/g).join('-'));
+			var tempAry = match.match(/\d+/g);
+			if(tempAry.length >= 2) { tempAry[1] = ("0" + tempAry[1]).slice(-2); }
+			if(tempAry.length >= 3) { 
+				tempAry[2] = ("0" + tempAry[2]).slice(-2); 
+			}
+			writeFile(num, Type.Date, tempAry.join('-'));
 			return '';
 		};
 
@@ -287,7 +335,7 @@ exports.dataExtraction = function(input) {
 
 		if (type == Type.Money) {
     		// 金額の整形 (億|千万|百万|万)*/g)
-    		matched = content.match(/(\d)+(億|万|千|百|円)*[^\d億万千百円]*/g);
+    		matched = content.match(/(\d)+(億|万|千|百|円|\d)*[億万千百円]+/g);
     		if(matched != null) {
     			each(matched, function(i, e) {
 
