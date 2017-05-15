@@ -90,7 +90,22 @@ function handleFileSelect() {
 }
 
 $('#start').on('click', function(event) {
-	handleFileSelect(event);
+    // handleFileSelect(event);
+    var testData = [
+        { no: 1, type: '電話番号', content: '080-1234-1231'},
+        { no: 2, type: '電話番号', content: '０２８７-４５-２００７'},
+        { no: 3, type: '日付', content: '平成元年年9月5日有限会社として設立'},
+        { no: 4, type: '金額', content: '４，０００万円'},
+        { no: 5, type: '会社名', content: '(有)デジタルリサーチ'},
+        { no: 6, type: '所在地', content: '長崎県佐世保市大塔町574-5TEL:0956-31-2611FAX:0956-31-2310'},
+        { no: 7, type: '会社名', content: '有限会社高木自動車 〒411-0833 静岡県三島市中142-7'}
+    ];
+
+    var output = dataExtraction(testData);
+    for (var i = 0; i < output.length; i++) {
+        var e = output[i];
+        console.log (e.no + "," + e.type + "," + e.content);
+    }
 });
 
 var clearFun;
