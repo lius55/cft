@@ -1,10 +1,23 @@
+each = function(arr, callback) {
+	var element;
+	for (element in arr) {
+		var val = arr[element];
+		if (callback.call(val, element, val) == false) {
+			break;
+		}
+	}
+	return arr;
+};
+
 const ReplaceMap = [
 	{ from: '【', 	to: '(' 	},
 	{ from: '】', 	to: ')' 	},
 	{ from: '元年', 	to: '1年'	},
 	{ from: '年年',	to: '年'		},
 	// ,を変換しないと、金額正しく取得できない
-	{ from: ' |　|､|、|"|,|．|\\.|\\n',	to: '' },
+	//{ from: ' |　|､|、|"|,|．|\\.|\\n',	to: '' },
+	// .と改行は削除しない
+	{ from: ' |　|､|、|"|,|．',	to: '' },
 	{ from: '\\(株\\)',  to: '株式会社' },
 	{ from: '\\(有\\)',  to: '有限会社' },
 	// 金額
@@ -53,8 +66,8 @@ function formatComp(strVal) {
 	var cmpReplaceMap = [
 		{ from: '【', 	to: '(' 	},
 		{ from: '】', 	to: ')' 	},
-		{ from: '\\(株\\)',  to: '株式会社' },
-		{ from: '\\(有\\)',  to: '有限会社' },
+		{ from: '\\(株\\)|㈱',  to: '株式会社' },
+		{ from: '\\(有\\)|㈲',  to: '有限会社' },
 		{ from: ' |　|､|、|"|．|\\.|\\n',	to: '' }
 	];
 
@@ -124,7 +137,10 @@ const Type = {
 	EngCmpName: '英文社名',
 	PostCode: 	'郵便番号',
 	Location: 	'所在地',
-	Fax: 		'FAX' 
+	Fax: 		'FAX',
+	Email: 		'Eメール',
+	Position: 	'役職',
+	PepleName:  '人名'  
 };
 
 const AmountUnit = [
@@ -142,19 +158,6 @@ const AmountUnit = [
 /**
  * 和暦→西歴へ変換処理
  */
-// function yearReplacer(match, p1, p2, p3, offset, string) {
-// 	var replaced;
-// 	$.each(YearMap, function(index, element) {
-// 		if(element.from.indexOf(match.match(/[^\d年]+/g).join('')) > -1)  {
-// 			let jpYear = parseInt(match.match(/[\d]+/g).join(''));
-// 			let adYear = parseInt(jpYear + element.to);
-// 			// console.log("match=" + match + ",to=" + adYear + "年");
-// 			replaced = adYear + "年";
-// 			return false;
-// 		}
-// 	});
-// 	return replaced;
-// }
 function yearReplacer(match, p1, p2, p3, offset, string) {
 	var replaced;
 	$.each(YearMap, function(index, element) {
@@ -174,10 +177,6 @@ function yearReplacer(match, p1, p2, p3, offset, string) {
 function toJpYear(str) {
 	return str.replace(/(昭和|平成|明治|大正|s|h|m|t)\d+/gi, yearReplacer);
 }
-
-// exports.convert(input) {
-// 	return dataExtraction(input);
-// }
 
 /**
  * データ整形処理
@@ -217,78 +216,87 @@ function dataExtraction(input) {
 
 		// 会社名の抽出
 		if (type == Type.CmpName || type == Type.Location) {
+			// 区切り文字で分割する
+			each(content.split(/\/|\n|\[|\]|【|】/), function(i, contentUnit) {
+				contentUnit = formatComp(contentUnit);
+		   		// 電話番号抽出
+	    		var cmpPhoneReplacer = function(match, p1, p2, p3, offset, string) {
+	    			match = match.replace(/[^\d‐ーｰ\(\)-]/g, '');
+	    			match = match.replace(/‐|−|-|ー|ｰ|\(|\)/g, '-');
+	    			// 最初と最後の-削除
+	    			match = match.replace(/^[^\d]+/g, '');
+	    			match = match.replace(/[^\d]+$/g, '');
+	    			if (match.length > 10) {
+		    			// resultArr.push('"' + num + '","' + Type.Phone + '","' + match + '"');
+		    			writeFile(num, Type.Phone, match);
+	    			}
+	    			return '|';
+	    		}
+	    		contentUnit = contentUnit.replace(/(電話|電話番号|tel)(:|\(|\)| |　|\d|‐|−|-|ー|ｰ)+/gi, cmpPhoneReplacer);
 
-    		content = formatComp(content);
+	    		// 郵便番号抽出
+	    		var postCodeReplacer = function(match, p1, p2, p3, offset, string) {
+	    			match = match.replace(/[^\d‐ーｰ-]/g, '');
+	    			match = match.replace(/‐|−|-|ー|ｰ/g, '-');
+	    			match = match.replace(/^[^\d]+/g, '');
+	    			match = match.replace(/[^\d]+$/g, '');
+	    			if (match.length > 0 ) {
+		    			// resultArr.push('"' + num + '","' + Type.PostCode + '","' + match + '"');
+		    			writeFile(num, Type.PostCode, match);
+	    			}
+	    			return '|';
+	    		}
+	    		contentUnit = contentUnit.replace(/(〒)(:| |　|\d|‐|−|-|ー|ｰ)+/gi, postCodeReplacer);
 
-    		// 電話番号抽出
-    		var cmpPhoneReplacer = function(match, p1, p2, p3, offset, string) {
-    			match = match.replace(/[^\d‐ーｰ\(\)-]/g, '');
-    			match = match.replace(/‐|−|-|ー|ｰ|\(|\)/g, '-');
-    			// 最初と最後の-削除
-    			match = match.replace(/^[^\d]+/g, '');
-    			match = match.replace(/[^\d]+$/g, '');
-    			if (match.length > 10) {
-	    			// resultArr.push('"' + num + '","' + Type.Phone + '","' + match + '"');
-	    			writeFile(num, Type.Phone, match);
-    			}
-    			return '|';
-    		}
-    		content = content.replace(/(電話|電話番号|tel)(:|\(|\)| |　|\d|‐|−|-|ー|ｰ)+/gi, cmpPhoneReplacer);
+				// FAX番号抽出
+	    		var faxReplacer = function(match, p1, p2, p3, offset, string) {
+	    			match = match.replace(/[^\d‐ーｰ\(\)-]/g, '');
+	    			match = match.replace(/‐|−|-|ー|ｰ|\(|\)/g, '-');
+	    			match = match.replace(/^[^\d]+/g, '');
+	    			match = match.replace(/[^\d]+$/g, '');
+	    			if (match.length > 0 ) {
+		    			// resultArr.push('"' + num + '","' + Type.Fax + '","' + match);
+		    			writeFile(num, Type.Fax, match);
+	    			}
+	    			return '|';
+	    		}
+	    		contentUnit = contentUnit.replace(/(fax)(:|\(|\)| |　|\d|‐|−|-|ー|ｰ)+/gi, faxReplacer);
 
-    		// 郵便番号抽出
-    		var postCodeReplacer = function(match, p1, p2, p3, offset, string) {
-    			match = match.replace(/[^\d‐ーｰ-]/g, '');
-    			match = match.replace(/‐|−|-|ー|ｰ/g, '-');
-    			match = match.replace(/^[^\d]+/g, '');
-    			match = match.replace(/[^\d]+$/g, '');
-    			if (match.length > 0 ) {
-	    			// resultArr.push('"' + num + '","' + Type.PostCode + '","' + match + '"');
-	    			writeFile(num, Type.PostCode, match);
-    			}
-    			return '|';
-    		}
-    		content = content.replace(/(〒)(:| |　|\d|‐|−|-|ー|ｰ)+/gi, postCodeReplacer);
+	    		// FAX、電話番号、郵便番号以降の内容削除する
+	    		contentUnit = contentUnit.replace(/\|.*/g, '');
 
-			// FAX番号抽出
-    		var faxReplacer = function(match, p1, p2, p3, offset, string) {
-    			match = match.replace(/[^\d‐ーｰ\(\)-]/g, '');
-    			match = match.replace(/‐|−|-|ー|ｰ|\(|\)/g, '-');
-    			match = match.replace(/^[^\d]+/g, '');
-    			match = match.replace(/[^\d]+$/g, '');
-    			if (match.length > 0 ) {
-	    			// resultArr.push('"' + num + '","' + Type.Fax + '","' + match);
-	    			writeFile(num, Type.Fax, match);
-    			}
-    			return '|';
-    		}
-    		content = content.replace(/(fax)(:|\(|\)| |　|\d|‐|−|-|ー|ｰ)+/gi, faxReplacer);
+	    		// 漢字、全角カナかな、全角ひらがな、半角かたかな
+	    		// 会社名・所在地のうち、記号や数字で始まるもの 記号や郵便番号等の数字は除去してください。
+	    		contentUnit = contentUnit.replace(/^[^一-龠|\u3040-\u309F|\u30A0-\u30FF|\uFF65-\uFF9F|\u4E00-\u9FFF]+/g, '');
 
-    		// FAX、電話番号、郵便番号以降の内容削除する
-    		content = content.replace(/\|.*/g, '');
+	    		// 所在地に「地図」「マップ」「アクセスマップ」を含むもの 該当の記述以降と、直前の記号を除去してください
+	    		contentUnit = contentUnit.replace(/[^一-龠|\u3040-\u309F|\u30A0-\u30FF|\uFF65-\uFF9F|\u4E00-\u9FFF\d]*(地図|マップ|アクセスマップ|詳細地図|google|メールアドレス|http|☎|詳細).*/gi, '');
 
-    		// 漢字、全角カナかな、全角ひらがな、半角かたかな
-    		// 会社名・所在地のうち、記号や数字で始まるもの 記号や郵便番号等の数字は除去してください。
-    		content = content.replace(/^[^一-龠|\u3040-\u309F|\u30A0-\u30FF|\uFF65-\uFF9F|\u4E00-\u9FFF]+/g, '');
+	    		var compReplacer = function(match, p1, p2, p3, offset, string) {
+	    			// resultArr.push('"' + num + '","' + Type.CmpName + '","' + match + '"');
+	    			// 特定のパラーン抽出しない
+	    			if (match.match(/(子会社|関連会社)+/) != null) {
+	    				return;
+	    			}
+	    			if (match == '株式会社' || match == '有限会社') {
+	    				return;
+	    			}
+	    			writeFile(num, Type.CmpName, match);
+	    			return '';
+	    		}
+	    		if (type == Type.CmpName) {
+	    			// 英文社名抽出
 
-    		// 所在地に「地図」「マップ」「アクセスマップ」を含むもの 該当の記述以降と、直前の記号を除去してください
-    		content = content.replace(/[^一-龠|\u3040-\u309F|\u30A0-\u30FF|\uFF65-\uFF9F|\u4E00-\u9FFF\d]*(地図|マップ|アクセスマップ|詳細地図|google|メールアドレス|http|☎).*/gi, '');
-
-    		var compReplacer = function(match, p1, p2, p3, offset, string) {
-    			// resultArr.push('"' + num + '","' + Type.CmpName + '","' + match + '"');
-    			writeFile(num, Type.CmpName, match);
-    			return '';
-    		}
-    		if (type == Type.CmpName) {
-    			content = content.replace(/[-]+$/g, '');
-    			// content.replace(/^[^,|\(|\)]*(会社)[^,|\(|\)]*/g, compReplacer);
-    			content.replace(/[^,|\(|\)]*(会社|店|商事|商社|事務所|屋|不動産|研究所|室|工房|組合|事業部|事務局|工業)[^,|\(|\)]*/g, compReplacer);
-    		} else {
-    			if (content.length > 1) {
-    				content = content.replace(/[-]+$/g, '');
-	    			// resultArr.push('"' + num + '","' + Type.Location + '","' + content + '"');
-	    			writeFile(num, Type.Location, content);
-    			}
-    		}
+	    			contentUnit = contentUnit.replace(/[-]+$/g, '');
+	    			contentUnit.replace(/[^,|\(|\)]*(会社|店|商事|商社|事務所|屋|不動産|研究所|室|工房|組合|事業部|事務局|工業)[^,|\(|\)]*/g, compReplacer);
+	    		} else {
+	    			if (contentUnit.length > 1) {
+	    				contentUnit = contentUnit.replace(/[-]+$/g, '');
+		    			// resultArr.push('"' + num + '","' + Type.Location + '","' + content + '"');
+		    			writeFile(num, Type.Location, contentUnit);
+	    			}
+	    		}
+			});
 		}
 
 		content = clearContent(content);
@@ -328,22 +336,30 @@ function dataExtraction(input) {
 		content = content.replace(/\d{4}年\d+月\d+日|\d{4}年\d+月|\d{4}年/g, dateReplacer);
 
 		if (type == Type.Money || type == Type.Date) {
-    		// 金額の整形 (億|千万|百万|万)*/g)
-    		// TODO
-    		matched = content.match(/(\d)+(億|万|千|百|円|\d)*[億万千百円]+/g);
-    		if(matched != null) {
-    			$.each(matched, function(i, e) {
+			// 1000(千円)などのケース抽出のため、()を除去する
+			content = content.replace(/\(|\)|（|）/g, '');
 
+			var moneyMatched = new Array();
+    		// 金額パターンの抽出
+    		matched = content.match(/(\d)+(億|万|千|百|円|\d|\.)*[億万千百円]+/g)
+    		moneyMatched = moneyMatched.concat(matched);
+    		// ¥から始まる場合、円で終わらなくても良い
+    		moneyMatched = moneyMatched.concat(content.match(/(¥|￥)+(億|万|千|百|円|\d|\.)+/g));
+    		if(moneyMatched != null) {
+    			$.each(moneyMatched, function(i, e) {
+    				if (e == null) { return; }
     				// 単位以外のものを削除する
-    				e = e.replace(/[^\d億万千百]/g, '');
+    				e = e.replace(/[^\d\.億万千百]/g, '');
     				var sumAmount = 0;
-    				var matchUnit = e.match(/(\d)+(億|万|千|百|円)*/g);
+    				var matchUnit = e.match(/(\d|\.)+(億|万|千|百|円)*/g);
     				if (matchUnit != null) {
     					$.each(matchUnit, function(unIndex, unElement) {
 
-		    				var unit = unElement.match(/[^\d]/g);
+    						// 金額の単位
+		    				var unit = unElement.match(/[^\d\.]/g);
 		    				unit = (unit == null) ? '' : unit.join('');
-			    			var amount = unElement.match(/\d/g).join('');
+		    				// 金額
+			    			var amount = parseFloat(unElement.match(/(\d|\.)+/g).join(''));
 			    			$.each(AmountUnit, function(auIndex, auElement) {
 
 			    				if (unit.indexOf(auElement.unit) > -1) {

@@ -36,6 +36,7 @@
 		<button type="submit" class="btn btn-default" for="file" display="fileName" id="selectFile">ファイル選択</button>
 	</div>
 	<div id="info"></div>
+    <button id="start">テスト</button>
 </div>
 
 <script type="text/javascript">
@@ -92,13 +93,30 @@ function handleFileSelect() {
 $('#start').on('click', function(event) {
     // handleFileSelect(event);
     var testData = [
-        { no: 1, type: '電話番号', content: '080-1234-1231'},
-        { no: 2, type: '電話番号', content: '０２８７-４５-２００７'},
-        { no: 3, type: '日付', content: '平成元年年9月5日有限会社として設立'},
-        { no: 4, type: '金額', content: '４，０００万円'},
-        { no: 5, type: '会社名', content: '(有)デジタルリサーチ'},
-        { no: 6, type: '所在地', content: '長崎県佐世保市大塔町574-5TEL:0956-31-2611FAX:0956-31-2310'},
-        { no: 7, type: '会社名', content: '有限会社高木自動車 〒411-0833 静岡県三島市中142-7'}
+        { no:  1, type: '電話番号', content: '080-1234-1231' },
+        { no:  2, type: '電話番号', content: '０２８７-４５-２００７' },
+        { no:  3, type: '日付', content: '平成元年年9月5日有限会社として設立' },
+        { no:  4, type: '金額', content: '４，０００万円' },
+        { no:  5, type: '会社名', content: '(有)デジタルリサーチ' },
+        { no:  6, type: '所在地', content: '長崎県佐世保市大塔町574-5TEL:0956-31-2611FAX:0956-31-2310' },
+        { no:  7, type: '会社名', content: '有限会社高木自動車 〒411-0833 静岡県三島市中142-7' },
+        { no:  8, type: '金額', content: '¥3000,000' },
+        { no:  9, type: '金額', content: '3.5百万' },
+        { no: 10, type: '金額', content: '10,000（千円）' },
+        { no: 11, type: '金額', content: '10,000.00円' },
+        { no: 12, type: '金額', content: '10,000.00円' },
+        { no: 13, type: '会社名', content: '㈲アトランティス工房鶴居' },
+        { no: 14, type: '会社名', content: '九州電力㈱' },
+        { no: 15, type: '会社名', content: '株式会社ハウスメイトパートナーズ詳細はこちら' },
+        { no: 16, type: '会社名', content: '東京プランニング株式会社 [ Tokyo PlanNing Co.,LTD ]' },
+        { no: 17, type: '会社名', content: '株式会社ウェブクエスト/WEBQuest Corporation' },
+        { no: 18, type: '会社名', content: '株式会社 ボックス・ワン\nBOX-1 CO.,LTD.' },
+        { no: 19, type: '会社名', content: '株式会社 ボックス・ワン(2010年1月1日設立)' },
+        { no: 20, type: '会社名', content: '株式会社' },
+        { no: 21, type: '会社名', content: 'CrowdWorks株式会社関連子会社' },
+        { no: 22, type: '会社名', content: 'パナソニック株式会社関連会社' },
+        { no: 23, type: '会社名', content: 'バリスタ株式会社Barista Company Limited' },
+        { no: 24, type: '会社名', content: 'ＬＥＤ’Ｓ株式会社（LED\'S Co., LTD.）' }
     ];
 
     var output = dataExtraction(testData);
