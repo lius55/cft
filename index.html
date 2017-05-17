@@ -29,14 +29,14 @@
 	<div class="form-inline" action="">
 		<div class="form-group">
 			<div class="input-group">
-				<input id="file" type="file" style="display:none;" />
+				<input id="file" type="file" style="display:none;" accept=".csv,text/csv" />
 				<input type="text" class="form-control" disabled id="fileName"/>
 			</div>
 		</div>
 		<button type="submit" class="btn btn-default" for="file" display="fileName" id="selectFile">ファイル選択</button>
 	</div>
 	<div id="info"></div>
-    <button id="start">テスト</button>
+    <button id="start" style="display: none;">テスト</button>
 </div>
 
 <script type="text/javascript">
@@ -58,7 +58,8 @@ function handleFileSelect() {
     var loaded = function(event) {
     	
     	// CSVファイルからデータ読み込み
-    	var arr = event.target.result.split('\r\n');
+    	// var arr = event.target.result.split('\r\n');
+        var arr = event.target.result.split('"\n');
     	// 最後の１行を削除
     	arr.pop();
 
@@ -66,6 +67,10 @@ function handleFileSelect() {
     	$.each(arr, function(index, element) {
 			var tempAry = element.split(',');
 			tempAry.splice(0, 2);
+            if (element.split(',')[1] == undefined) {
+                // console.log(index + "," + element);
+                return;
+            }
     		var dataElement = {
     			no: 		element.split(',')[0],
     			type: 		element.split(',')[1].replace(/\"/g, ''),
@@ -91,7 +96,7 @@ function handleFileSelect() {
 }
 
 $('#start').on('click', function(event) {
-    // handleFileSelect(event);
+    handleFileSelect(event);
     var testData = [
         { no:  1, type: '電話番号', content: '080-1234-1231' },
         { no:  2, type: '電話番号', content: '０２８７-４５-２００７' },
@@ -113,17 +118,36 @@ $('#start').on('click', function(event) {
         { no: 18, type: '会社名', content: '株式会社 ボックス・ワン\nBOX-1 CO.,LTD.' },
         { no: 19, type: '会社名', content: '株式会社 ボックス・ワン(2010年1月1日設立)' },
         { no: 20, type: '会社名', content: '株式会社' },
-        { no: 21, type: '会社名', content: 'CrowdWorks株式会社関連子会社' },
+        { no: 21, type: '会社名', content: 'CrowdWorks株式会社子会社' },
         { no: 22, type: '会社名', content: 'パナソニック株式会社関連会社' },
         { no: 23, type: '会社名', content: 'バリスタ株式会社Barista Company Limited' },
-        { no: 24, type: '会社名', content: 'ＬＥＤ’Ｓ株式会社（LED\'S Co., LTD.）' }
+        { no: 24, type: '会社名', content: 'ＬＥＤ’Ｓ株式会社（LED\'S Co., LTD.）' },
+        { no: 25, type: '会社名', content: '✑キャン\'エンタープライゼズ株式会社' },
+        { no: 26, type: '会社名', content: ';カラージュコーポレーション株式会社' },
+        { no: 27, type: '会社名', content: '/有限会社ファーストエム' },
+        { no: 28, type: '英文社名', content: 'WEBQuest Corporation' },
+        { no: 29, type: 'Eメール', content: 'info@value-press.com' },
+        { no: 30, type: 'Eメール', content: 'present[at]newtonpress.co.jp' },
+        { no: 31, type: 'Eメール', content: 'E-mail：info@bondiray.com' },
+        { no: 32, type: 'Eメール', content: 'sales%twin-links.jp(%を@に変えて送信して下さい)' },
+        { no: 33, type: 'Eメール', content: 'E-mail：support@1000server.jpTEL：03-6277-7799HP：http://1000server.jp' },
+        { no: 34, type: 'Eメール', content: '[E-mail]rf447832@yb4.so-net.ne.jp' },
+        { no: 35, type: '役職', content: '河野通博' },
+        { no: 36, type: '役職', content: '代表取締役社長 鈴木正人' },
+        { no: 37, type: '役職', content: '代表取締役社長 高橋志郎 （1955/昭和30年生）' },
+        { no: 38, type: '役職', content: '原口 達也（はらぐち たつや）' },
+        { no: 39, type: '役職', content: '代表取締役社長\n小林 純夫' },
+        { no: 40, type: '役職', content: '・大石 隆,\n・大石 隆"' },
+        { no: 41, type: '役職', content: 'Tokyo' },
+        { no: 42, type: '役職', content: '石' },
+        { no: 43, type: '役職', content: '"中村美賀子（Mikako Nakamura） ブログ' }
     ];
 
-    var output = dataExtraction(testData);
-    for (var i = 0; i < output.length; i++) {
-        var e = output[i];
-        console.log (e.no + "," + e.type + "," + e.content);
-    }
+    // var output = dataExtraction(testData);
+    // for (var i = 0; i < output.length; i++) {
+    //     var e = output[i];
+    //     console.log (e.no + "," + e.type + "," + e.content);
+    // }
 });
 
 var clearFun;
