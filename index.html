@@ -58,8 +58,8 @@ function handleFileSelect() {
     var loaded = function(event) {
     	
     	// CSVファイルからデータ読み込み
-    	// var arr = event.target.result.split('\r\n');
-        var arr = event.target.result.split('"\n');
+    	var arr = event.target.result.split('\r\n');
+        // var arr = event.target.result.split('"\n');
     	// 最後の１行を削除
     	arr.pop();
 
